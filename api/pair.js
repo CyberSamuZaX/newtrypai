@@ -1,152 +1,78 @@
-
-const { makeid } = require('./gen-id');
 const express = require('express');
-const fs = require('fs');
-let router = express.Router();
-const pino = require("pino");
-const { default: makeWASocket, useMultiFileAuthState, delay, Browsers, makeCacheableSignalKeyStore, getAggregateVotesInPollMessage, DisconnectReason, WA_DEFAULT_EPHEMERAL, jidNormalizedUser, proto, getDevice, generateWAMessageFromContent, fetchLatestBaileysVersion, makeInMemoryStore, getContentType, generateForwardMessageContent, downloadContentFromMessage, jidDecode } = require('@whiskeysockets/baileys')
+const { default: makeWASocket, useMultiFileAuthState, Browsers } = require('@whiskeysockets/baileys');
+const pino = require('pino');
+const qrcode = require('qrcode');
 
-const { upload } = require('./mega');
-function removeFile(FilePath) {
-    if (!fs.existsSync(FilePath)) return false;
-    fs.rmSync(FilePath, { recursive: true, force: true });
-}
-router.get('/', async (req, res) => {
-    const id = makeid();
-    let num = req.query.number;
-    async function GIFTED_MD_PAIR_CODE() {
-        const {
-            state,
-            saveCreds
-        } = await useMultiFileAuthState('./temp/' + id);
-        try {
-var items = ["Safari"];
-function selectRandomItem(array) {
-  var randomIndex = Math.floor(Math.random() * array.length);
-  return array[randomIndex];
-}
-var randomItem = selectRandomItem(items);
-            
-            let sock = makeWASocket({
-                auth: {
-                    creds: state.creds,
-                    keys: makeCacheableSignalKeyStore(state.keys, pino({ level: "fatal" }).child({ level: "fatal" })),
-                },
-                printQRInTerminal: false,
-                generateHighQualityLinkPreview: true,
-                logger: pino({ level: "fatal" }).child({ level: "fatal" }),
-                syncFullHistory: false,
-                browser: Browsers.macOS(randomItem)
-            });
-            if (!sock.authState.creds.registered) {
-                await delay(1500);
-                num = num.replace(/[^0-9]/g, '');
-                const code = await sock.requestPairingCode(num);
-                if (!res.headersSent) {
-                    await res.send({ code });
-                }
-            }
-            sock.ev.on('creds.update', saveCreds);
-            sock.ev.on("connection.update", async (s) => {
+const app = express();
+const port = process.env.PORT || 3000;
 
-    const {
-                    connection,
-                    lastDisconnect
-                } = s;
-                
-                if (connection == "open") {
-                    await delay(5000);
-                    let data = fs.readFileSync(__dirname + `/temp/${id}/creds.json`);
-                    let rf = __dirname + `/temp/${id}/creds.json`;
-                    function generateRandomText() {
-                        const prefix = "3EB";
-                        const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-                        let randomText = prefix;
-                        for (let i = prefix.length; i < 22; i++) {
-                            const randomIndex = Math.floor(Math.random() * characters.length);
-                            randomText += characters.charAt(randomIndex);
-                        }
-                        return randomText;
-                    }
-                    const randomText = generateRandomText();
-                    try {
+let sock;
+let qrCodeData = null;
 
+async function startSock() {
+    const { state, saveCreds } = await useMultiFileAuthState('./auth_info');
 
-                        
-                        const { upload } = require('./mega');
-                        const mega_url = await upload(fs.createReadStream(rf), `${sock.user.id}.json`);
-                        const string_session = mega_url.replace('https://mega.nz/file/', '');
-                        let md = "KANGO~" + string_session;
-                        let code = await sock.sendMessage(sock.user.id, { text: md });
-                        let desc = `*Hello there KANGO-XMD User! 👋🏻* 
+    sock = makeWASocket({
+        auth: state,
+        printQRInTerminal: false, // terminal එකට print කරන්න නැහැ
+        logger: pino({ level: 'fatal' }),
+        browser: Browsers.macOS('Chrome'),
+    });
 
-> Do not share your session id with your gf 😂.
+    sock.ev.on('creds.update', saveCreds);
 
- *Thanks for using KANGO-XMD 🚩* 
+    sock.ev.on('connection.update', async (update) => {
+        const { connection, lastDisconnect, qr } = update;
 
-> Join WhatsApp Channel :- ⤵️
- 
-https://whatsapp.com/channel/0029Va8YUl50bIdtVMYnYd0E
+        if (qr) {
+            // QR code එක generate කරලා base64 string එකක් සකසමු
+            qrCodeData = await qrcode.toDataURL(qr);
+            console.log('New QR code generated');
+        }
 
-Dont forget to fork the repo ⬇️
+        if (connection === 'open') {
+            console.log('WhatsApp connection opened!');
+            qrCodeData = null; // connected පස්සේ QR එක clear කරමු
+        }
 
-https://github.com/OfficialKango/KANGO-XMD
-
-> *© Powered BY Hector Manuel 🖤*`; 
-                        await sock.sendMessage(sock.user.id, {
-text: desc,
-contextInfo: {
-externalAdReply: {
-title: "Hector Manuel",
-thumbnailUrl: "https://i.imgur.com/GVW7aoD.jpeg",
-sourceUrl: "https://whatsapp.com/channel/0029Va8YUl50bIdtVMYnYd0E",
-mediaType: 1,
-renderLargerThumbnail: true
-}  
-}
-},
-{quoted:code })
-                    } catch (e) {
-                            let ddd = sock.sendMessage(sock.user.id, { text: e });
-                            let desc = `*Don't Share with anyone this code use for deploy KANGO-XMD*\n\n ◦ *Github:* https://github.com/OfficialKango/KANGO-XMD`;
-                            await sock.sendMessage(sock.user.id, {
-text: desc,
-contextInfo: {
-externalAdReply: {
-title: "KANGO-XMD",
-thumbnailUrl: "https://i.imgur.com/GVW7aoD.jpeg",
-sourceUrl: "https://whatsapp.com/channel/0029Va8YUl50bIdtVMYnYd0E",
-mediaType: 2,
-renderLargerThumbnail: true,
-showAdAttribution: true
-}  
-}
-},
-{quoted:ddd })
-                    }
-                    await delay(10);
-                    await sock.ws.close();
-                    await removeFile('./temp/' + id);
-                    console.log(`👤 ${sock.user.id} 𝗖𝗼𝗻𝗻𝗲𝗰𝘁𝗲𝗱 ✅ 𝗥𝗲𝘀𝘁𝗮𝗿𝘁𝗶𝗻𝗴 𝗽𝗿𝗼𝗰𝗲𝘀𝘀...`);
-                    await delay(10);
-                    process.exit();
-                } else if (connection === "close" && lastDisconnect && lastDisconnect.error && lastDisconnect.error.output.statusCode != 401) {
-                    await delay(10);
-                    GIFTED_MD_PAIR_CODE();
-                }
-            });
-        } catch (err) {
-            console.log("service restated");
-            await removeFile('./temp/' + id);
-            if (!res.headersSent) {
-                await res.send({ code: "❗ Service Unavailable" });
+        if (connection === 'close') {
+            const shouldReconnect = lastDisconnect.error?.output?.statusCode !== 401;
+            console.log('Connection closed. Reconnecting?', shouldReconnect);
+            if (shouldReconnect) {
+                startSock();
+            } else {
+                console.log('Session invalid, please delete auth_info folder and restart.');
             }
         }
+    });
+}
+
+app.get('/qr', (req, res) => {
+    if (qrCodeData) {
+        // Browser එකට QR code image එක base64 ලෙස පෙන්වන්න
+        res.send(`
+            <html>
+                <body style="text-align:center;">
+                    <h2>Scan this QR code with WhatsApp</h2>
+                    <img src="${qrCodeData}" />
+                </body>
+            </html>
+        `);
+    } else {
+        res.send('No QR code available or already connected.');
     }
-   return await GIFTED_MD_PAIR_CODE();
-});/*
-setInterval(() => {
-    console.log("☘️ 𝗥𝗲𝘀𝘁𝗮𝗿𝘁𝗶𝗻𝗴 𝗽𝗿𝗼𝗰𝗲𝘀𝘀...");
-    process.exit();
-}, 180000); //30min*/
-module.exports = router;
+});
+
+app.get('/start', async (req, res) => {
+    if (!sock) {
+        await startSock();
+        res.send('Starting WhatsApp connection. Open /qr to scan QR code.');
+    } else {
+        res.send('WhatsApp socket already running. Open /qr to scan QR code.');
+    }
+});
+
+app.listen(port, () => {
+    console.log(`Server running on http://localhost:${port}`);
+    console.log(`Open http://localhost:${port}/start to start the WhatsApp socket`);
+});
