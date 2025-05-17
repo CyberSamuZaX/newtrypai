@@ -1,78 +1,50 @@
-const express = require('express');
-const { default: makeWASocket, useMultiFileAuthState, Browsers } = require('@whiskeysockets/baileys');
-const pino = require('pino');
-const qrcode = require('qrcode');
+import { default as makeWASocket, useMultiFileAuthState, delay, Browsers, makeCacheableSignalKeyStore } from '@whiskeysockets/baileys';
+import pino from 'pino';
 
-const app = express();
-const port = process.env.PORT || 3000;
+export default async function handler(req, res) {
+  if (req.method !== 'GET') return res.status(405).send('Method Not Allowed');
+  
+  const number = req.query.number;
+  if (!number) return res.status(400).json({ error: 'number query parameter required' });
+  
+  const id = Date.now().toString();
 
-let sock;
-let qrCodeData = null;
+  try {
+    const { state, saveCreds } = await useMultiFileAuthState(`./auth/${id}`);
 
-async function startSock() {
-    const { state, saveCreds } = await useMultiFileAuthState('./auth_info');
-
-    sock = makeWASocket({
-        auth: state,
-        printQRInTerminal: false, // terminal එකට print කරන්න නැහැ
-        logger: pino({ level: 'fatal' }),
-        browser: Browsers.macOS('Chrome'),
+    const sock = makeWASocket({
+      auth: {
+        creds: state.creds,
+        keys: makeCacheableSignalKeyStore(state.keys, pino({ level: 'fatal' }).child({ level: 'fatal' }))
+      },
+      printQRInTerminal: false,
+      logger: pino({ level: 'fatal' }),
+      browser: Browsers.macOS('Safari')
     });
-
-    sock.ev.on('creds.update', saveCreds);
 
     sock.ev.on('connection.update', async (update) => {
-        const { connection, lastDisconnect, qr } = update;
+      const { connection, qr, lastDisconnect } = update;
 
-        if (qr) {
-            // QR code එක generate කරලා base64 string එකක් සකසමු
-            qrCodeData = await qrcode.toDataURL(qr);
-            console.log('New QR code generated');
+      if (qr) {
+        if (!res.writableEnded) {
+          res.status(200).json({ code: qr });
         }
+      }
 
-        if (connection === 'open') {
-            console.log('WhatsApp connection opened!');
-            qrCodeData = null; // connected පස්සේ QR එක clear කරමු
-        }
+      if (connection === 'open') {
+        await saveCreds();
+        await delay(2000);
+        await sock.ws.close();
+      }
 
-        if (connection === 'close') {
-            const shouldReconnect = lastDisconnect.error?.output?.statusCode !== 401;
-            console.log('Connection closed. Reconnecting?', shouldReconnect);
-            if (shouldReconnect) {
-                startSock();
-            } else {
-                console.log('Session invalid, please delete auth_info folder and restart.');
-            }
+      if (connection === 'close') {
+        if (lastDisconnect.error?.output?.statusCode !== 401) {
+          console.log('Connection closed unexpectedly');
         }
+      }
     });
+  } catch (err) {
+    console.error(err);
+    if (!res.writableEnded) res.status(500).json({ code: 'Error getting pair code, try again later.' });
+  }
 }
-
-app.get('/qr', (req, res) => {
-    if (qrCodeData) {
-        // Browser එකට QR code image එක base64 ලෙස පෙන්වන්න
-        res.send(`
-            <html>
-                <body style="text-align:center;">
-                    <h2>Scan this QR code with WhatsApp</h2>
-                    <img src="${qrCodeData}" />
-                </body>
-            </html>
-        `);
-    } else {
-        res.send('No QR code available or already connected.');
-    }
-});
-
-app.get('/start', async (req, res) => {
-    if (!sock) {
-        await startSock();
-        res.send('Starting WhatsApp connection. Open /qr to scan QR code.');
-    } else {
-        res.send('WhatsApp socket already running. Open /qr to scan QR code.');
-    }
-});
-
-app.listen(port, () => {
-    console.log(`Server running on http://localhost:${port}`);
-    console.log(`Open http://localhost:${port}/start to start the WhatsApp socket`);
-});
