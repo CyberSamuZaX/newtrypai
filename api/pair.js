@@ -1,4 +1,3 @@
-// api/pair.js
 export default function handler(req, res) {
   const { number } = req.query;
 
@@ -7,8 +6,17 @@ export default function handler(req, res) {
     return;
   }
 
-  // Random pair code generate කිරීම
-  const randomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+  // 8 characters random uppercase code generate කරන function එක
+  function generateCode(length) {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let result = '';
+    for (let i = 0; i < length; i++) {
+      result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
+  }
+
+  const randomCode = generateCode(8);
 
   res.status(200).json({ code: randomCode });
 }
